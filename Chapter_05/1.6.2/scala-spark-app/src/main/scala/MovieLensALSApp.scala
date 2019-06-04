@@ -6,41 +6,48 @@ import org.apache.spark.mllib.recommendation.{ALS, Rating}
 import org.jblas.DoubleMatrix
 
 /**
+  * 使用ALS做推荐模型(协同过滤)
   * ALS applied to MovieLens Data
   * @ author Rajdeep Dua
   * March 2016
   */
 object MovieLensALSApp {
 
-  val PATH = "../../data"
+  val PATH = "../../dataset"
+
   def main(args: Array[String]) {
     val sc = new SparkContext("local[2]", "Chapter 5 App")
+    //todo  1，获取数据
     val rawData = sc.textFile(PATH + "/ml-100k/u.data")
     rawData.first()
     // 14/03/30 13:21:25 INFO SparkContext: Job finished: first at <console>:17, took 0.002843 s
     // res24: String = 196	242	3	881250949
 
+    //todo 2,提取有效特征 这里使用了userId,moveId,rating
     /* Extract the user id, movie id and rating only from the dataset */
     val rawRatings = rawData.map(_.split("\t").take(3))
     rawRatings.first()
     // 14/03/30 13:22:44 INFO SparkContext: Job finished: first at <console>:21, took 0.003703 s
     // res25: Array[String] = Array(196, 242, 3)
-
     val ratings = rawRatings.map { case Array(user, movie, rating) => Rating(user.toInt, movie.toInt, rating.toDouble) }
     val ratingsFirst = ratings.first()
     println(ratingsFirst)
 
     /* Train the ALS model with rank=50, iterations=10, lambda=0.01 */
+    //todo  3,训练ALS模型
     val model = ALS.train(ratings, 50, 10, 0.01)
     val model2 = ALS.train(ratings, 50, 10, 0.009)
 
     /* Inspect the user factors */
-    println( model.userFeatures)
+    println(model.userFeatures)
     /* Count user factors and force computation */
+    //todo model.userFeatures是基于用户推荐数据    model.productFeatures是基于物品推荐数据
     println("userFeatures.count:" + model.userFeatures.count)
     println("productFeatures.count" + model.productFeatures.count)
 
+    println("---------------------------基于用户的推荐---------------------------------------------")
     /* Make a prediction for a single user and movie pair */
+    //todo 4,预测
     val predictedRating = model.predict(789, 123)
     println(predictedRating)
     val userId = 789
@@ -48,18 +55,24 @@ object MovieLensALSApp {
     val topKRecs = model.recommendProducts(userId, K)
     println(topKRecs.mkString("\n"))
 
+    //todo 5,验证推荐内容的正确性
     val movies = sc.textFile(PATH + "/ml-100k/u.item")
     val titles = movies.map(line => line.split("\\|").take(2)).map(array => (array(0).toInt, array(1))).collectAsMap()
+    titles.take(10).foreach(println)
     titles(123)
     // res68: String = Frighteners, The (1996)
     val moviesForUser = ratings.keyBy(_.user).lookup(789)
     // moviesForUser: Seq[org.apache.spark.mllib.recommendation.Rating] = WrappedArray(Rating(789,1012,4.0), Rating(789,127,5.0), Rating(789,475,5.0), Rating(789,93,4.0), ...
     // ...
     println(moviesForUser.size)
+    //todo 获取789用户评价过的电影，按照评价高低排名，前十 输出 电影标题|预测评分
     moviesForUser.sortBy(-_.rating).take(10).map(rating => (titles(rating.product), rating.rating)).foreach(println)
+    //todo 前十个推荐 输出 电影标题|预测评分
     topKRecs.map(rating => (titles(rating.product), rating.rating)).foreach(println)
 
 
+    println("---------------------------基于物品的推荐---------------------------------------------")
+    //todo 基于余弦相似度来计算物品之间的相似度，此外还有常用的皮尔逊相似度计算法等
     val aMatrix = new DoubleMatrix(Array(1.0, 2.0, 3.0))
     val itemId = 567
     val itemFactor = model.productFeatures.lookup(itemId).head
@@ -68,55 +81,69 @@ object MovieLensALSApp {
     // itemVector: org.jblas.DoubleMatrix = [0.151794; -0.277596; 0.988601; -0.464013; 0.188061; 0.090506; ...
     Util.cosineSimilarity(itemVector, itemVector)
     // res113: Double = 1.0000000000000002
-    val sims = model.productFeatures.map{ case (id, factor) =>
+    //todo 使用余弦相似度求各个物品的相似度
+    val sims = model.productFeatures.map { case (id, factor) =>
       val factorVector = new DoubleMatrix(factor)
       val sim = Util.cosineSimilarity(factorVector, itemVector)
       (id, sim)
     }
+    //todo 对物品按照相似度排序，取出与物品567最相似的10个物品
     val sortedSims = sims.top(K)(Ordering.by[(Int, Double), Double] { case (id, similarity) => similarity })
     // sortedSims: Array[(Int, Double)] = Array((567,1.0), (672,0.483244928887981), (1065,0.43267674923450905), ...
     println(sortedSims.mkString("\n"))
 
     println(titles(itemId))
     // Wes Craven's New Nightmare (1994)
+    //todo 检查推荐的相似物品
     val sortedSims2 = sims.top(K + 1)(Ordering.by[(Int, Double), Double] { case (id, similarity) => similarity })
-    sortedSims2.slice(1, 11).map{ case (id, sim) => (titles(id), sim) }.mkString("\n")
+    sortedSims2.slice(1, 11).map { case (id, sim) => (titles(id), sim) }.mkString("\n")
 
+    println("---------------------------评估ALS模型（均方差,k值）---------------------------------------------")
+
+    //todo  ------使用均方差MSE评估ALS模型
+    //获取780用户的第一个电影评级
     val actualRating = moviesForUser.take(1)(0)
     // actualRating: Seq[org.apache.spark.mllib.recommendation.Rating] = WrappedArray(Rating(789,1012,4.0))
+    //计算该用户对该电影的评级，输出为4,与真实结果十分接近
     val predictedRating2 = model.predict(789, actualRating.product)
     // ...
     // 14/04/13 13:01:15 INFO SparkContext: Job finished: lookup at MatrixFactorizationModel.scala:46, took 0.025404 s
     // predictedRating: Double = 4.001005374200248
+    //计算实际评级和预计评级的平方误差
     val squaredError = math.pow(predictedRating2 - actualRating.rating, 2.0)
 
     println("Squared error for 789:" + squaredError)
 
-    val usersProducts = ratings.map{ case Rating(user, product, rating)  => (user, product)}
-    val predictions = model.predict(usersProducts).map{
+    //计算整个数据集的均方差
+    val usersProducts = ratings.map { case Rating(user, product, rating) => (user, product) }
+    //先计算每个用户->物品的预测得分，并以(用户,物品)做key，预测评分做value输出
+    val predictions = model.predict(usersProducts).map {
       case Rating(user, product, rating) => ((user, product), rating)
     }
-    val ratingsAndPredictions = ratings.map{
+    //然后获取每个 用户->物品 的真实得分，并以(用户,物品)做key，预测评分做value输出
+    val ratingsAndPredictions = ratings.map {
       case Rating(user, product, rating) => ((user, product), rating)
     }.join(predictions)
 
-    val MSE = ratingsAndPredictions.map{
-      case ((user, product), (actual, predicted)) =>  math.pow((actual - predicted), 2)
+    //计算整个数据集的MSE
+    val MSE = ratingsAndPredictions.map {
+      case ((user, product), (actual, predicted)) => math.pow((actual - predicted), 2)
     }.reduce(_ + _) / ratingsAndPredictions.count
     println("Mean Squared Error = " + MSE)
 
+    //计算均方根误差
     val RMSE = math.sqrt(MSE)
     println("Root Mean Squared Error = " + RMSE)
 
-    val predictions2 = model2.predict(usersProducts).map{
+    val predictions2 = model2.predict(usersProducts).map {
       case Rating(user, product, rating) => ((user, product), rating)
     }
-    val ratingsAndPredictions2 = ratings.map{
+    val ratingsAndPredictions2 = ratings.map {
       case Rating(user, product, rating) => ((user, product), rating)
     }.join(predictions)
 
-    val MSE2 = ratingsAndPredictions2.map{
-      case ((user, product), (actual, predicted)) =>  math.pow((actual - predicted), 2)
+    val MSE2 = ratingsAndPredictions2.map {
+      case ((user, product), (actual, predicted)) => math.pow((actual - predicted), 2)
     }.reduce(_ + _) / ratingsAndPredictions2.count
     println("Mean Squared Error 2= " + MSE2)
 
@@ -143,7 +170,7 @@ object MovieLensALSApp {
       val today = Calendar.getInstance().getTime()
       // (2) create a date "formatter" (the date format we want)
       val formatter = new SimpleDateFormat("yyyy-MM-dd-hh.mm.ss")
-   
+
       // (3) create a new String using the date format we want
       val folderName = formatter.format(today)
       return folderName
@@ -170,4 +197,5 @@ object MovieLensALSApp {
       }
     }
   }
+
 }
