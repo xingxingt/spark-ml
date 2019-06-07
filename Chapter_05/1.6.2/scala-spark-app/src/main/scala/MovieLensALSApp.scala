@@ -7,9 +7,11 @@ import org.jblas.DoubleMatrix
 
 /**
   * 使用ALS做推荐模型(协同过滤)
-  * ALS applied to MovieLens Data
-  * @ author Rajdeep Dua
-  * March 2016
+  * 1,获取原始数据
+  * 2,提取有效特征 这里使用了userId,moveId,rating
+  * 3,使用选取的特征训练ALS模型（基于用户和基于物品）
+  * 4,使用ALS的基于用户推荐模型和基于物品模型预测结果
+  * 5,使用均方差/K值平均准确率....、或者使用mllib库内置的评估函数来评估预测的结果
   */
 object MovieLensALSApp {
 
