@@ -14,19 +14,21 @@ import org.apache.spark.sql.{DataFrame, SQLContext}
 object StumbleUponExecutor {
   @transient lazy val logger = Logger.getLogger(getClass.getName)
 
-  def main(args: Array[String]) {
-    val conf = SparkCommonUtils.createSparkConf("StumbleUpon")
-    val sc = new SparkContext(conf)
+  private val path = SparkConstants.path
 
+  def main(args: Array[String]) {
+    val spark = SparkCommonUtils.createSparkSession("StumbleUpon")
+    val sc = spark.sparkContext
     // create sql context
-    val sqlContext = new SQLContext(sc)
+    val sqlContext = spark.sqlContext
 
     // get dataframe
-    val df = sqlContext.read.format("com.databricks.spark.csv").option("delimiter", "\t").option("header", "true")
-      .option("inferSchema", "true").load("/Users/manpreet.singh/Sandbox/codehub/github/machinelearning/spark-ml/Chapter_06/2.0.0/scala-spark-app/src/main/scala/org/sparksamples/classification/dataset/stumbleupon/train.tsv")
+    val df = sqlContext.read.format("com.databricks.spark.csv").option("delimiter", "\t")
+      .option("header", "true").option("inferSchema", "true").load(path + "\\stumbleupon\\train" +
+      ".tsv")
 
     // pre-processing
-    df.registerTempTable("StumbleUpon")
+    df.createOrReplaceTempView("StumbleUpon")
     df.printSchema()
     sqlContext.sql("SELECT * FROM StumbleUpon WHERE alchemy_category = '?'").show()
 
@@ -47,7 +49,8 @@ object StumbleUponExecutor {
       .withColumn("lengthyLinkDomain", df("lengthyLinkDomain").cast("double"))
       .withColumn("linkwordscore", df("linkwordscore").cast("double"))
       .withColumn("news_front_page", df("news_front_page").cast("double"))
-      .withColumn("non_markup_alphanum_characters", df("non_markup_alphanum_characters").cast("double"))
+      .withColumn("non_markup_alphanum_characters", df("non_markup_alphanum_characters").cast
+      ("double"))
       .withColumn("numberOfLinks", df("numberOfLinks").cast("double"))
       .withColumn("numwords_in_url", df("numwords_in_url").cast("double"))
       .withColumn("parametrizedLinkRatio", df("parametrizedLinkRatio").cast("double"))
@@ -56,7 +59,7 @@ object StumbleUponExecutor {
     df1.printSchema()
 
     // user defined function for cleanup of ?
-    val replacefunc = udf {(x:Double) => if(x == "?") 0.0 else x}
+    val replacefunc = udf { (x: Double) => if (x == "?") 0.0 else x }
 
     val df2 = df1.withColumn("avglinksize", replacefunc(df1("avglinksize")))
       .withColumn("commonlinkratio_1", replacefunc(df1("commonlinkratio_1")))
@@ -74,7 +77,8 @@ object StumbleUponExecutor {
       .withColumn("lengthyLinkDomain", replacefunc(df1("lengthyLinkDomain")))
       .withColumn("linkwordscore", replacefunc(df1("linkwordscore")))
       .withColumn("news_front_page", replacefunc(df1("news_front_page")))
-      .withColumn("non_markup_alphanum_characters", replacefunc(df1("non_markup_alphanum_characters")))
+      .withColumn("non_markup_alphanum_characters", replacefunc(df1
+      ("non_markup_alphanum_characters")))
       .withColumn("numberOfLinks", replacefunc(df1("numberOfLinks")))
       .withColumn("numwords_in_url", replacefunc(df1("numwords_in_url")))
       .withColumn("parametrizedLinkRatio", replacefunc(df1("parametrizedLinkRatio")))
@@ -82,33 +86,39 @@ object StumbleUponExecutor {
       .withColumn("label", replacefunc(df1("label")))
 
     // drop first 4 columns
-    val df3 = df2.drop("url").drop("urlid").drop("boilerplate").drop("alchemy_category").drop("alchemy_category_score")
+    val df3 = df2.drop("url").drop("urlid").drop("boilerplate")
+      .drop("alchemy_category").drop("alchemy_category_score")
 
     // fill null values with
     val df4 = df3.na.fill(0.0)
 
-    df4.registerTempTable("StumbleUpon_PreProc")
+    df4.createOrReplaceTempView("StumbleUpon_PreProc")
     df4.printSchema()
     sqlContext.sql("SELECT * FROM StumbleUpon_PreProc").show()
 
     // setup pipeline
     val assembler = new VectorAssembler()
-      .setInputCols(Array("avglinksize", "commonlinkratio_1", "commonlinkratio_2", "commonlinkratio_3", "commonlinkratio_4", "compression_ratio"
+      .setInputCols(Array("avglinksize", "commonlinkratio_1", "commonlinkratio_2",
+        "commonlinkratio_3", "commonlinkratio_4", "compression_ratio"
         , "embed_ratio", "framebased", "frameTagRatio", "hasDomainLink", "html_ratio", "image_ratio"
-        ,"is_news", "lengthyLinkDomain", "linkwordscore", "news_front_page", "non_markup_alphanum_characters", "numberOfLinks"
-        ,"numwords_in_url", "parametrizedLinkRatio", "spelling_errors_ratio"))
+        , "is_news", "lengthyLinkDomain", "linkwordscore", "news_front_page",
+        "non_markup_alphanum_characters", "numberOfLinks"
+        , "numwords_in_url", "parametrizedLinkRatio", "spelling_errors_ratio"))
       .setOutputCol("features")
 
     val command = args(0)
 
-    if(command.equals("NB")) {
+    if (command.equals("NB")) {
       val df5 = prepareForNaiveBayes(df4)
 
       val nbAssembler = new VectorAssembler()
-        .setInputCols(Array("avglinksize", "commonlinkratio_1", "commonlinkratio_2", "commonlinkratio_3", "commonlinkratio_4", "compression_ratio"
-          , "embed_ratio", "framebased", "frameTagRatio", "hasDomainLink", "html_ratio", "image_ratio"
-          ,"is_news", "lengthyLinkDomain", "linkwordscore", "news_front_page", "non_markup_alphanum_characters", "numberOfLinks"
-          ,"numwords_in_url", "parametrizedLinkRatio", "spelling_errors_ratio"))
+        .setInputCols(Array("avglinksize", "commonlinkratio_1", "commonlinkratio_2",
+          "commonlinkratio_3", "commonlinkratio_4", "compression_ratio"
+          , "embed_ratio", "framebased", "frameTagRatio", "hasDomainLink", "html_ratio",
+          "image_ratio"
+          , "is_news", "lengthyLinkDomain", "linkwordscore", "news_front_page",
+          "non_markup_alphanum_characters", "numberOfLinks"
+          , "numwords_in_url", "parametrizedLinkRatio", "spelling_errors_ratio"))
         .setOutputCol("features")
 
       executeCommand(command, nbAssembler, df5, sc)
@@ -116,14 +126,16 @@ object StumbleUponExecutor {
       executeCommand(command, assembler, df4, sc)
   }
 
-  def executeCommand(arg: String, vectorAssembler: VectorAssembler, dataFrame: DataFrame, sparkContext: SparkContext) = arg match {
+  def executeCommand(arg: String, vectorAssembler: VectorAssembler, dataFrame: DataFrame,
+                     sparkContext: SparkContext): Unit = arg match {
     case "LR" => LogisticRegressionPipeline.logisticRegressionPipeline(vectorAssembler, dataFrame)
 
     case "DT" => DecisionTreePipeline.decisionTreePipeline(vectorAssembler, dataFrame)
 
     case "RF" => RandomForestPipeline.randomForestPipeline(vectorAssembler, dataFrame)
 
-    case "GBT" => GradientBoostedTreePipeline.gradientBoostedTreePipeline(vectorAssembler, dataFrame)
+    case "GBT" => GradientBoostedTreePipeline.gradientBoostedTreePipeline(vectorAssembler,
+      dataFrame)
 
     case "NB" => NaiveBayesPipeline.naiveBayesPipeline(vectorAssembler, dataFrame)
 
@@ -132,7 +144,7 @@ object StumbleUponExecutor {
 
   def prepareForNaiveBayes(dataFrame: DataFrame): DataFrame = {
     // user defined function for cleanup of ?
-    val replacefunc = udf {(x:Double) => if(x < 0) 0.0 else x}
+    val replacefunc = udf { (x: Double) => if (x < 0) 0.0 else x }
 
     val df5 = dataFrame.withColumn("avglinksize", replacefunc(dataFrame("avglinksize")))
       .withColumn("commonlinkratio_1", replacefunc(dataFrame("commonlinkratio_1")))
@@ -150,19 +162,21 @@ object StumbleUponExecutor {
       .withColumn("lengthyLinkDomain", replacefunc(dataFrame("lengthyLinkDomain")))
       .withColumn("linkwordscore", replacefunc(dataFrame("linkwordscore")))
       .withColumn("news_front_page", replacefunc(dataFrame("news_front_page")))
-      .withColumn("non_markup_alphanum_characters", replacefunc(dataFrame("non_markup_alphanum_characters")))
+      .withColumn("non_markup_alphanum_characters", replacefunc(dataFrame
+      ("non_markup_alphanum_characters")))
       .withColumn("numberOfLinks", replacefunc(dataFrame("numberOfLinks")))
       .withColumn("numwords_in_url", replacefunc(dataFrame("numwords_in_url")))
       .withColumn("parametrizedLinkRatio", replacefunc(dataFrame("parametrizedLinkRatio")))
       .withColumn("spelling_errors_ratio", replacefunc(dataFrame("spelling_errors_ratio")))
       .withColumn("label", replacefunc(dataFrame("label")))
 
-    return df5
+    df5
   }
 
   object DFHelper
-  def castColumnTo( df: DataFrame, cn: String, tpe: DataType ) : DataFrame = {
-    df.withColumn( cn, df(cn).cast(tpe) )
+
+  def castColumnTo(df: DataFrame, cn: String, tpe: DataType): DataFrame = {
+    df.withColumn(cn, df(cn).cast(tpe))
   }
 }
 
