@@ -10,5 +10,9 @@ object SparkCommonUtils {
   def createSparkConf(appName: String): SparkConf = {
      new SparkConf().setAppName(appName).setMaster(SparkConstants.SparkMaster)
   }
+ 
+ def createSparkSession(appName: String): SparkSession = {
+    SparkSession.builder().master("local[*]").appName(appName).getOrCreate()
+  }
 
 }
