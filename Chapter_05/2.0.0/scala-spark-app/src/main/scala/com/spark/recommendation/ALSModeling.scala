@@ -5,7 +5,7 @@ import org.apache.spark.ml.recommendation.ALS
 import org.apache.spark.sql.DataFrame
 
 /**
-  * Created by manpreet.singh on 07/09/16.
+  * Created by xinghe on 07/09/16.
   */
 object ALSModeling {
 
@@ -21,24 +21,33 @@ object ALSModeling {
     val als = new ALS()
       .setMaxIter(5)
       .setRegParam(0.01)
+      .setRank(5) //推荐前5
       .setUserCol("userId")
       .setItemCol("movieId")
       .setRatingCol("rating")
 
     //todo 4,训练ALS模型
     val model = als.fit(training)
+    //用户因子矩阵
     //    model.userFactors.show(false)
+    //物品因子矩阵
     //    model.itemFactors.show(false)
     //todo 5,model.userFactors基于用户推荐模型  model.itemFactors基于物品推荐模型
-    println(model.userFactors.count())
-    println(model.itemFactors.count())
+    //    println(model.userFactors.count())
+    //    println(model.itemFactors.count())
 
     //todo 6,使用测试数据集检测模型
     val predictions = model.transform(test)
     println(predictions.printSchema())
-    //    predictions.where("userId=13").sort("prediction").show(false)
-    import org.apache.spark.sql.functions._
-    predictions.where("userId=29").orderBy(desc("prediction")).show(false)
+
+
+    //todo 使用ALS模型进行推荐
+    println(s"=============================基于用户推荐模型=============================")
+    model.recommendForAllUsers(5).show(false)
+
+    println(s"==============================基于物品推荐模型============================")
+    model.recommendForAllItems(5).show(false)
+
 
     //todo 7，使用RegressionEvaluator对ALS模型进行评估
     val evaluator = new RegressionEvaluator()
@@ -48,6 +57,10 @@ object ALSModeling {
     val rmse = evaluator.evaluate(predictions)
     //
     println(s"Root-mean-square error = $rmse")
+
+
+    //todo 模型保存/读取模型
+    //    model.save("/Users/axing/Documents/dev/ideaWorkSpace/spark-ml/Chapter_05/2.0.0/scala-spark-app/src/data/model/alsModel")
   }
 
   def validateResult(df: DataFrame): Unit = {
