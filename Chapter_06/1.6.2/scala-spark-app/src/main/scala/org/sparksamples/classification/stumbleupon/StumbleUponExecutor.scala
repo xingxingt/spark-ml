@@ -23,10 +23,10 @@ object StumbleUponExecutor {
 
     // get dataframe
     val df = sqlContext.read.format("com.databricks.spark.csv").option("delimiter", "\t").option("header", "true")
-      .option("inferSchema", "true").load("/home/ubuntu/work/ml-resources/spark-ml/train.tsv")
+      .option("inferSchema", "true").load(SparkConstants.PATH + "stumbleupon/train.tsv")
 
     // pre-processing
-    df.registerTempTable("StumbleUpon")
+    df.createOrReplaceTempView("StumbleUpon")
     df.printSchema()
     sqlContext.sql("SELECT * FROM StumbleUpon WHERE alchemy_category = '?'").show()
 
@@ -56,7 +56,7 @@ object StumbleUponExecutor {
     df1.printSchema()
 
     // user defined function for cleanup of ?
-    val replacefunc = udf {(x:Double) => if(x == "?") 0.0 else x}
+    val replacefunc = udf { (x: Double) => if (x == "?") 0.0 else x }
 
     val df2 = df1.withColumn("avglinksize", replacefunc(df1("avglinksize")))
       .withColumn("commonlinkratio_1", replacefunc(df1("commonlinkratio_1")))
@@ -87,7 +87,7 @@ object StumbleUponExecutor {
     // fill null values with
     val df4 = df3.na.fill(0.0)
 
-    df4.registerTempTable("StumbleUpon_PreProc")
+    df4.createOrReplaceTempView("StumbleUpon_PreProc")
     df4.printSchema()
     sqlContext.sql("SELECT * FROM StumbleUpon_PreProc").show()
 
@@ -95,20 +95,20 @@ object StumbleUponExecutor {
     val assembler = new VectorAssembler()
       .setInputCols(Array("avglinksize", "commonlinkratio_1", "commonlinkratio_2", "commonlinkratio_3", "commonlinkratio_4", "compression_ratio"
         , "embed_ratio", "framebased", "frameTagRatio", "hasDomainLink", "html_ratio", "image_ratio"
-        ,"is_news", "lengthyLinkDomain", "linkwordscore", "news_front_page", "non_markup_alphanum_characters", "numberOfLinks"
-        ,"numwords_in_url", "parametrizedLinkRatio", "spelling_errors_ratio"))
+        , "is_news", "lengthyLinkDomain", "linkwordscore", "news_front_page", "non_markup_alphanum_characters", "numberOfLinks"
+        , "numwords_in_url", "parametrizedLinkRatio", "spelling_errors_ratio"))
       .setOutputCol("features")
 
     val command = args(0)
 
-    if(command.equals("NB")) {
+    if (command.equals("NB")) {
       val df5 = prepareForNaiveBayes(df4)
 
       val nbAssembler = new VectorAssembler()
         .setInputCols(Array("avglinksize", "commonlinkratio_1", "commonlinkratio_2", "commonlinkratio_3", "commonlinkratio_4", "compression_ratio"
           , "embed_ratio", "framebased", "frameTagRatio", "hasDomainLink", "html_ratio", "image_ratio"
-          ,"is_news", "lengthyLinkDomain", "linkwordscore", "news_front_page", "non_markup_alphanum_characters", "numberOfLinks"
-          ,"numwords_in_url", "parametrizedLinkRatio", "spelling_errors_ratio"))
+          , "is_news", "lengthyLinkDomain", "linkwordscore", "news_front_page", "non_markup_alphanum_characters", "numberOfLinks"
+          , "numwords_in_url", "parametrizedLinkRatio", "spelling_errors_ratio"))
         .setOutputCol("features")
 
       executeCommand(command, nbAssembler, df5, sc)
@@ -132,7 +132,7 @@ object StumbleUponExecutor {
 
   def prepareForNaiveBayes(dataFrame: DataFrame): DataFrame = {
     // user defined function for cleanup of ?
-    val replacefunc = udf {(x:Double) => if(x < 0) 0.0 else x}
+    val replacefunc = udf { (x: Double) => if (x < 0) 0.0 else x }
 
     val df5 = dataFrame.withColumn("avglinksize", replacefunc(dataFrame("avglinksize")))
       .withColumn("commonlinkratio_1", replacefunc(dataFrame("commonlinkratio_1")))
@@ -161,8 +161,9 @@ object StumbleUponExecutor {
   }
 
   object DFHelper
-  def castColumnTo( df: DataFrame, cn: String, tpe: DataType ) : DataFrame = {
-    df.withColumn( cn, df(cn).cast(tpe) )
+
+  def castColumnTo(df: DataFrame, cn: String, tpe: DataType): DataFrame = {
+    df.withColumn(cn, df(cn).cast(tpe))
   }
 }
 
