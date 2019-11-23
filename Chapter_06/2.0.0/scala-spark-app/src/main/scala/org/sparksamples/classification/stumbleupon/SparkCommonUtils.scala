@@ -1,6 +1,7 @@
 package org.sparksamples.classification.stumbleupon
 
 import org.apache.spark.SparkConf
+import org.apache.spark.sql.SparkSession
 
 /**
   * Created by manpreet.singh on 26/04/16.

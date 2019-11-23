@@ -24,7 +24,7 @@ object StumbleUponExecutor {
 
     // get dataframe
     val df = sqlContext.read.format("com.databricks.spark.csv").option("delimiter", "\t")
-      .option("header", "true").option("inferSchema", "true").load(path + "\\stumbleupon\\train" +
+      .option("header", "true").option("inferSchema", "true").load(path + "/stumbleupon/train" +
       ".tsv")
 
     // pre-processing
