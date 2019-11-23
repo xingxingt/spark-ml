@@ -29,8 +29,8 @@ object DecisionTreePipeline {
     val dt = new DecisionTreeClassifier()
       .setFeaturesCol(vectorAssembler.getOutputCol)
       .setLabelCol("indexedLabel")
-      .setMaxDepth(5)
-      .setMaxBins(32)
+      .setMaxDepth(5)  //树的深度
+      .setMaxBins(32)  //节点数的最大值 一般为2的n次方
       .setMinInstancesPerNode(1)
       .setMinInfoGain(0.0)
       .setCacheNodeIds(false)
