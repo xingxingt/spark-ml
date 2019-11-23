@@ -18,7 +18,7 @@ object NaiveBayesPipeline {
   def naiveBayesPipeline(vectorAssembler: VectorAssembler, dataFrame: DataFrame) = {
     val Array(training, test) = dataFrame.randomSplit(Array(0.9, 0.1), seed = 12345)
 
-    // Set up Pipeline
+    // Set up Pipeline 创建pipline
     val stages = new mutable.ArrayBuffer[PipelineStage]()
 
     val labelIndexer = new StringIndexer()
@@ -26,6 +26,7 @@ object NaiveBayesPipeline {
       .setOutputCol("indexedLabel")
     stages += labelIndexer
 
+    //创建朴素叶贝斯模型
     val nb = new NaiveBayes()
 
     stages += vectorAssembler
@@ -35,12 +36,13 @@ object NaiveBayesPipeline {
     // Fit the Pipeline
     val startTime = System.nanoTime()
     //val model = pipeline.fit(training)
+    //训练模型
     val model = pipeline.fit(dataFrame)
     val elapsedTime = (System.nanoTime() - startTime) / 1e9
     println(s"Training time: $elapsedTime seconds")
 
     //val holdout = model.transform(test).select("prediction","label")
-    val holdout = model.transform(dataFrame).select("prediction","label")
+    val holdout = model.transform(dataFrame).select("prediction", "label")
 
     // Select (prediction, true label) and compute test error
     val evaluator = new MulticlassClassificationEvaluator()
