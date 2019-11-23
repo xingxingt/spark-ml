@@ -16,8 +16,11 @@ object LogisticRegressionPipeline {
   @transient lazy val logger = Logger.getLogger(getClass.getName)
 
   def logisticRegressionPipeline(vectorAssembler: VectorAssembler, dataFrame: DataFrame) = {
+
+    //创建LogisticRegression对象
     val lr = new LogisticRegression()
 
+    //使用ParamGridBuilder构建一个参数网格，即参数列表，供评估器从中选择和搜索到能构建最佳模型的参数
     val paramGrid = new ParamGridBuilder()
       .addGrid(lr.regParam, Array(0.1, 0.01))
       .addGrid(lr.fitIntercept)
@@ -26,6 +29,7 @@ object LogisticRegressionPipeline {
 
     val pipeline = new Pipeline().setStages(Array(vectorAssembler, lr))
 
+    //超参数调优
     val trainValidationSplit = new TrainValidationSplit()
       .setEstimator(pipeline)
       .setEvaluator(new RegressionEvaluator)
@@ -33,14 +37,16 @@ object LogisticRegressionPipeline {
       // 80% of the data will be used for training and the remaining 20% for validation.
       .setTrainRatio(0.8)
 
+    //拆分数据集
     val Array(training, test) = dataFrame.randomSplit(Array(0.8, 0.2), seed = 12345)
     //val model = trainValidationSplit.fit(training)
+    //运行评估器
     val model = trainValidationSplit.fit(dataFrame)
-
     //val holdout = model.transform(test).select("prediction","label")
-    val holdout = model.transform(dataFrame).select("prediction","label")
+    val holdout = model.transform(dataFrame).select("prediction", "label")
 
     // have to do a type conversion for RegressionMetrics
+    //类型转换
     val rm = new RegressionMetrics(holdout.rdd.map(x => (x(0).asInstanceOf[Double], x(1).asInstanceOf[Double])))
 
     logger.info("Test Metrics")
@@ -55,16 +61,16 @@ object LogisticRegressionPipeline {
 
     val totalPoints = dataFrame.count()
     val lrTotalCorrect = holdout.rdd.map(x => if (x(0).asInstanceOf[Double] == x(1).asInstanceOf[Double]) 1 else 0).sum()
-    val accuracy = lrTotalCorrect/totalPoints
+    val accuracy = lrTotalCorrect / totalPoints
     println("Accuracy of LogisticRegression is: ", accuracy)
 
-    holdout.rdd.map(x => x(0).asInstanceOf[Double]).repartition(1).saveAsTextFile("/Users/manpreet.singh/Sandbox/codehub/github/machinelearning/spark-ml/Chapter_06/2.0.0/scala-spark-app/src/main/scala/org/sparksamples/classification/results/LR.xls")
-    holdout.rdd.map(x => x(1).asInstanceOf[Double]).repartition(1).saveAsTextFile("/Users/manpreet.singh/Sandbox/codehub/github/machinelearning/spark-ml/Chapter_06/2.0.0/scala-spark-app/src/main/scala/org/sparksamples/classification/results/Actual.xls")
+    //    holdout.rdd.map(x => x(0).asInstanceOf[Double]).repartition(1).saveAsTextFile("/Users/manpreet.singh/Sandbox/codehub/github/machinelearning/spark-ml/Chapter_06/2.0.0/scala-spark-app/src/main/scala/org/sparksamples/classification/results/LR.xls")
+    //    holdout.rdd.map(x => x(1).asInstanceOf[Double]).repartition(1).saveAsTextFile("/Users/manpreet.singh/Sandbox/codehub/github/machinelearning/spark-ml/Chapter_06/2.0.0/scala-spark-app/src/main/scala/org/sparksamples/classification/results/Actual.xls")
 
-    savePredictions(holdout, dataFrame, rm, "/Users/manpreet.singh/Sandbox/codehub/github/machinelearning/spark-ml/Chapter_06/2.0.0/scala-spark-app/src/main/scala/org/sparksamples/classification/results/LogisticRegression.csv")
+    //    savePredictions(holdout, dataFrame, rm, "/Users/manpreet.singh/Sandbox/codehub/github/machinelearning/spark-ml/Chapter_06/2.0.0/scala-spark-app/src/main/scala/org/sparksamples/classification/results/LogisticRegression.csv")
   }
 
-  def savePredictions(predictions:DataFrame, testRaw:DataFrame, regressionMetrics: RegressionMetrics, filePath:String) = {
+  def savePredictions(predictions: DataFrame, testRaw: DataFrame, regressionMetrics: RegressionMetrics, filePath: String) = {
     println("Mean Squared Error:", regressionMetrics.meanSquaredError)
     println("Root Mean Squared Error:", regressionMetrics.rootMeanSquaredError)
 
