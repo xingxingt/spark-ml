@@ -12,9 +12,8 @@ import org.apache.spark.sql.{DataFrame, SQLContext}
   * Created by manpreet.singh on 25/04/16.
   */
 object StumbleUponExecutor {
-  @transient lazy val logger = Logger.getLogger(getClass.getName)
+//  @transient lazy val logger = Logger.getLogger(getClass.getName)
 
-  private val path = SparkConstants.path
 
   def main(args: Array[String]) {
     val spark = SparkCommonUtils.createSparkSession("StumbleUpon")
@@ -24,7 +23,7 @@ object StumbleUponExecutor {
 
     // get dataframe
     val df = sqlContext.read.format("com.databricks.spark.csv").option("delimiter", "\t")
-      .option("header", "true").option("inferSchema", "true").load(path + "/stumbleupon/train" +
+      .option("header", "true").option("inferSchema", "true").load("dataset/stumbleupon/train" +
       ".tsv")
 
     // pre-processing
