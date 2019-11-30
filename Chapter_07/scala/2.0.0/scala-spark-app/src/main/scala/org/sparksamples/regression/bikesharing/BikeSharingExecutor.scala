@@ -16,16 +16,15 @@ object BikeSharingExecutor {
     val spark = SparkSession
       .builder
       .appName("BikeSharing")
-      .master("local[1]")
+      .master("local[*]")
       .getOrCreate()
 
-    println(System.getProperty("user.dir"))
 
     // read from csv
-    val df = spark.read.format("csv").option("header", "true").load("./src/main/scala/org/sparksamples/regression/dataset/BikeSharing/hour.csv")
+    val df = spark.read.format("csv").option("header", "true").load("dataset/BikeSharing/hour.csv")
     df.cache()
 
-    df.registerTempTable("BikeSharing")
+    df.createOrReplaceTempView("BikeSharing")
     print(df.count())
 
     spark.sql("SELECT * FROM BikeSharing").show()
@@ -46,12 +45,14 @@ object BikeSharingExecutor {
     val df3 = df2.drop("label")
     val featureCols = df3.columns
 
+    //向量转换器,多个列合并为一个向量列
     val vectorAssembler = new VectorAssembler().setInputCols(featureCols).setOutputCol("rawFeatures")
 
+    //对类别特征进行索引
     val vectorIndexer = new VectorIndexer().setInputCol("rawFeatures").setOutputCol("features").setMaxCategories(2)
 
     // set as an argument
-    val command = "GLR_SVM"
+    val command = "LR_Vectors"
 
     executeCommand(command, vectorAssembler, vectorIndexer, df2, spark)
   }
@@ -61,22 +62,23 @@ object BikeSharingExecutor {
     case "LR_SVM" => LinearRegressionPipeline.linearRegressionWithSVMFormat(spark)
 
     case "GLR_Vectors" => GeneralizedLinearRegressionPipeline.genLinearRegressionWithVectorFormat(vectorAssembler, vectorIndexer, dataFrame)
-    case "GLR_SVM"=> GeneralizedLinearRegressionPipeline.genLinearRegressionWithSVMFormat(spark)
+    case "GLR_SVM" => GeneralizedLinearRegressionPipeline.genLinearRegressionWithSVMFormat(spark)
 
     case "DT_Vectors" => DecisionTreeRegressionPipeline.decTreeRegressionWithVectorFormat(vectorAssembler, vectorIndexer, dataFrame)
-    case "DT_SVM"=> GeneralizedLinearRegressionPipeline.genLinearRegressionWithSVMFormat(spark)
+    case "DT_SVM" => GeneralizedLinearRegressionPipeline.genLinearRegressionWithSVMFormat(spark)
 
     case "RF_Vectors" => RandomForestRegressionPipeline.randForestRegressionWithVectorFormat(vectorAssembler, vectorIndexer, dataFrame)
-    case "RF_SVM"=> RandomForestRegressionPipeline.randForestRegressionWithSVMFormat(spark)
+    case "RF_SVM" => RandomForestRegressionPipeline.randForestRegressionWithSVMFormat(spark)
 
     case "GBT_Vectors" => GradientBoostedTreeRegressorPipeline.gbtRegressionWithVectorFormat(vectorAssembler, vectorIndexer, dataFrame)
-    case "GBT_SVM"=> GradientBoostedTreeRegressorPipeline.gbtRegressionWithSVMFormat(spark)
+    case "GBT_SVM" => GradientBoostedTreeRegressorPipeline.gbtRegressionWithSVMFormat(spark)
 
   }
 
   object DFHelper
-  def castColumnTo( df: DataFrame, cn: String, tpe: DataType ) : DataFrame = {
-    df.withColumn( cn, df(cn).cast(tpe) )
+
+  def castColumnTo(df: DataFrame, cn: String, tpe: DataType): DataFrame = {
+    df.withColumn(cn, df(cn).cast(tpe))
   }
 }
 
