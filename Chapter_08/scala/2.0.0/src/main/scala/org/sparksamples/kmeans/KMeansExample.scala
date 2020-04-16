@@ -22,18 +22,28 @@ package org.sparksamples.kmeans
 // $example on$
 import org.apache.spark.SparkConf
 import org.apache.spark.ml.clustering.KMeans
+import org.apache.spark.ml.evaluation.ClusteringEvaluator
+import org.apache.spark.ml.feature.LabeledPoint
+import org.apache.spark.ml.linalg.Vectors
+import org.apache.spark.sql.Dataset
 // $example off$
 import org.apache.spark.sql.SparkSession
 
 /**
- * An example demonstrating k-means clustering.
- * Run with
- * {{{
- * bin/run-example ml.KMeansExample
- * }}}
- */
+  * An example demonstrating k-means clustering.
+  * Run with
+  * {{{
+  * bin/run-example ml.KMeansExample
+  * }}}
+  */
 object KMeansExample {
-  val PATH = "/home/ubuntu/work/spark-2.0.0-bin-hadoop2.7/";
+  val PATH = "/Users/axing/Documents/dev/ideaWorkSpace/spark-ml/Chapter_08/scala/2.0.0/"
+
+
+  def isColumnNameLine(line: String): Boolean = {
+    if (line != null && line.contains("Channel")) true
+    else false
+  }
 
   def main(args: Array[String]): Unit = {
     // Creates a SparkSession.
@@ -53,17 +63,38 @@ object KMeansExample {
 
     // $example on$
     // Loads data.
-    val dataset = spark.read.format("libsvm").load(PATH + "data/mllib/sample_kmeans_data.txt")
-    val cols = dataset.columns
+    val inputDf = spark.read.option("header", "true").csv(PATH + "data/Wholesale customers data.csv")
+    import spark.implicits._
+    val dataset: Dataset[LabeledPoint] = inputDf.map(row => {
+      val array = Array(row.getString(1).toDouble, row.getString(2).toDouble, row.getString(3).toDouble,
+        row.getString(4).toDouble,
+        row.getString(5).toDouble, row.getString(6).toDouble, row.getString(7).toDouble)
+      // 特征
+      val features = Vectors.dense(array)
+      // 返回标签向量
+      LabeledPoint(row.getString(0).toDouble, features)
+    })
     dataset.show()
 
+    val splitDataSet = dataset.randomSplit(Array(0.8, 0.2))
+    val trainData = splitDataSet(0)
+    val testData = splitDataSet(1)
     // Trains a k-means model.
     val kmeans = new KMeans().setK(2).setSeed(1L)
-    val model = kmeans.fit(dataset)
+    val model = kmeans.fit(trainData)
+
+    // Make predictions
+    val predictions = model.transform(testData)
+
+    // Evaluate clustering by computing Silhouette score
+    val evaluator = new ClusteringEvaluator()
+    val silhouette = evaluator.evaluate(predictions)
+    println(s"Silhouette with squared euclidean distance = $silhouette")
 
     // Evaluate clustering by computing Within Set Sum of Squared Errors.
-    val WSSSE = model.computeCost(dataset)
-    println(s"Within Set Sum of Squared Errors = $WSSSE")
+    //ps:同样的迭代次数和算法跑的次数，这个值越小代表聚类的效果越好,用来选择K值
+    //    val WSSSE = model.computeCost(dataset)
+    //    println(s"Within Set Sum of Squared Errors = $WSSSE")
 
     // Shows the result.
     println("Cluster Centers: ")
@@ -73,4 +104,5 @@ object KMeansExample {
     spark.stop()
   }
 }
+
 // scalastyle:on println
